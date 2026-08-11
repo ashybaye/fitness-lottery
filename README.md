@@ -1,9 +1,10 @@
 # 🃏 30-Day Fitness Challenge Deck
 
 A mobile-first, shared flashcard board of 30 fitness challenges. Anyone visiting the site
-sees the same board. Cards can be opened to reveal a challenge, and up to **2 cards total**
-can be opened per day across everyone sharing the board. A freshly-opened card can be
-closed again to pick a different one instead, without using up a daily slot.
+sees the same board. Cards can be opened to reveal a challenge, but only **1 card total**
+can be opened per day across everyone sharing the board. Once a card is opened it stays
+revealed permanently — there's no way to undo a single pick. A "Reset board" button lets
+anyone start the whole 30-card deck over from scratch (with a confirmation prompt).
 
 This is a fully static site (plain HTML/CSS/JS, no build step, no server) that stores its
 shared state in **Firebase Firestore**, so it can be hosted for free on **GitHub Pages**.
@@ -26,8 +27,9 @@ shared state in **Firebase Firestore**, so it can be hosted for free on **GitHub
    repo, then click **Publish**.
 
 These rules allow public read/write (there's no login for this app) but constrain writes to
-only valid state transitions (e.g. a card can only move `closed → opened` or, same-day,
-`opened → closed`; challenge text can never be modified).
+only valid state transitions (e.g. a card can only move `closed → opened`, which is
+permanent in the normal flow; the `opened → closed` transition is reserved for the
+"Reset board" action; challenge text can never be modified).
 
 ## 3. Run locally
 
@@ -44,8 +46,8 @@ automatically seed Firestore with the 30 challenge cards.
 
 ### Running the automated tests
 
-The open/close daily-limit logic and `firestore.rules` are covered by tests against the
-Firestore emulator (no real Firebase project needed):
+The daily-limit open logic, the reset action, and `firestore.rules` are covered by tests
+against the Firestore emulator (no real Firebase project needed):
 
 ```bash
 npm install
@@ -69,11 +71,14 @@ at `https://ashybaye.github.io/fitness-lottery/`.
 ## How it works
 
 - **`index.html` / `style.css`** — mobile-first markup and styling for the 30-card grid,
-  including a flip animation when a card is opened.
+  including a flip animation when a card is opened, and a "Reset board" button in the header.
 - **`app.js`** — Firebase init, live board rendering via Firestore's `onSnapshot`, and the
-  open/close logic. Opening and closing a card each run inside a **Firestore transaction**
-  that also reads/writes a `meta/dailyCount` document, so the global "2 cards per day" limit
-  is enforced atomically even if multiple people tap a card at the same moment.
+  open logic. Opening a card runs inside a **Firestore transaction** that also reads/writes
+  a `meta/dailyCount` document, so the global "1 card per day" limit is enforced atomically
+  even if multiple people tap a card at the same moment. Opened cards show a "Let's go! 💪"
+  button (purely motivational — it doesn't change state). The "Reset board" button closes
+  every currently-opened card and resets today's count back to 0, so the whole 30-card deck
+  can start over.
 - **`firebase-config.js`** — your project's public Firebase config (safe to publish; access
   control is handled by `firestore.rules`, not by secrecy of these values).
 - **`firestore.rules`** — Firestore security rules enforcing valid state transitions.
@@ -83,7 +88,7 @@ at `https://ashybaye.github.io/fitness-lottery/`.
 ## Data model
 
 - `cards/{cardId}` — `{ id, order, text, status: 'closed' | 'opened', openedDate: 'YYYY-MM-DD' | null }`
-- `meta/dailyCount` — `{ date: 'YYYY-MM-DD', count: 0..2 }` — how many cards have been opened
+- `meta/dailyCount` — `{ date: 'YYYY-MM-DD', count: 0..1 }` — how many cards have been opened
   on the current day, globally.
 
 ## Known limitations

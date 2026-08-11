@@ -47,6 +47,21 @@ html, body {
   font-weight: 600;
 }
 
+.reset-btn {
+  margin-top: 10px;
+  background: transparent;
+  color: var(--text-dim);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 999px;
+  padding: 6px 14px;
+  font-size: 0.75rem;
+  cursor: pointer;
+}
+
+.reset-btn:active {
+  background: rgba(255, 255, 255, 0.08);
+}
+
 main {
   padding: 8px 12px 24px;
   max-width: 640px;
@@ -144,20 +159,21 @@ main {
   overflow-wrap: anywhere;
 }
 
-.close-btn {
+.lets-go-btn {
   position: absolute;
   bottom: 6px;
-  font-size: 0.6rem;
-  background: rgba(255, 255, 255, 0.12);
-  color: var(--text);
+  font-size: 0.62rem;
+  font-weight: 600;
+  background: var(--accent);
+  color: #06281c;
   border: none;
   border-radius: 999px;
-  padding: 4px 8px;
+  padding: 5px 10px;
   cursor: pointer;
 }
 
-.close-btn:active {
-  background: rgba(255, 255, 255, 0.25);
+.lets-go-btn:active {
+  filter: brightness(0.9);
 }
 
 .app-footer {

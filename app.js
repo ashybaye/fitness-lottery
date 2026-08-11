@@ -2,12 +2,14 @@
 //
 // Data model in Firestore:
 //   cards/{cardId}      -> { id, order, text, status: 'closed'|'opened', openedDate: 'YYYY-MM-DD'|null }
-//   meta/dailyCount     -> { date: 'YYYY-MM-DD', count: 0..2 }  (global opens used today)
+//   meta/dailyCount     -> { date: 'YYYY-MM-DD', count: 0..1 }  (global opens used today)
 //
-// The daily global limit (max 2 opens/day across all users) is enforced inside a
+// The daily global limit (max 1 open/day across all users) is enforced inside a
 // Firestore transaction that reads+writes both the target card and the meta/dailyCount
 // doc atomically, so two users opening cards at the same moment can't both sneak past
-// the limit.
+// the limit. Once a card is opened it stays opened permanently — there is no way to
+// close/undo it from the UI. The "Reset board" button is the only way to put cards
+// back to closed, and it resets the *entire* shared board (all 30 cards + today's count).
 
 import { firebaseConfig } from "./firebase-config.js";
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-app.js";
@@ -54,7 +56,7 @@ const CHALLENGES = [
   '🏆 60-minute "choose your favorite" workout',
 ];
 
-const DAILY_LIMIT = 2;
+const DAILY_LIMIT = 1;
 
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
@@ -63,6 +65,7 @@ const metaDocRef = doc(db, "meta", "dailyCount");
 
 const boardEl = document.getElementById("board");
 const statusEl = document.getElementById("status-line");
+const resetBtn = document.getElementById("reset-btn");
 
 function todayStr() {
   const d = new Date();
@@ -123,7 +126,7 @@ async function openCard(cardId) {
       const currentCount = meta.date === today ? meta.count : 0;
 
       if (currentCount >= DAILY_LIMIT) {
-        throw new Error("The daily limit of 2 cards has been reached. Come back tomorrow!");
+        throw new Error("Today's card has already been picked. Come back tomorrow!");
       }
 
       tx.set(metaDocRef, { date: today, count: currentCount + 1 });
@@ -134,31 +137,26 @@ async function openCard(cardId) {
   }
 }
 
-async function closeCard(cardId) {
+async function resetBoard() {
+  const confirmed = window.confirm(
+    "Reset the entire shared board? This closes all 30 cards for everyone and clears today's opens. This cannot be undone."
+  );
+  if (!confirmed) return;
+
   try {
-    await runTransaction(db, async (tx) => {
-      const cardRef = doc(db, "cards", cardId);
-      const [cardSnap, metaSnap] = await Promise.all([
-        tx.get(cardRef),
-        tx.get(metaDocRef),
-      ]);
-
-      if (!cardSnap.exists()) throw new Error("Card not found.");
-      const card = cardSnap.data();
-      const today = todayStr();
-
-      if (card.status !== "opened" || card.openedDate !== today) {
-        throw new Error("Only a card opened earlier today can be closed again.");
+    const snap = await getDocs(cardsCol);
+    const batch = writeBatch(db);
+    snap.docs.forEach((d) => {
+      if (d.data().status === "opened") {
+        batch.update(d.ref, { status: "closed", openedDate: null });
       }
-
-      const meta = metaSnap.exists() ? metaSnap.data() : { date: today, count: 0 };
-      const currentCount = meta.date === today ? meta.count : 0;
-
-      tx.set(metaDocRef, { date: today, count: Math.max(0, currentCount - 1) });
-      tx.update(cardRef, { status: "closed", openedDate: null });
     });
+    batch.set(metaDocRef, { date: todayStr(), count: 0 });
+    await batch.commit();
+    showToast("Board reset! All 30 cards are closed again.");
   } catch (err) {
-    showToast(err.message || "Could not close card.");
+    console.error(err);
+    showToast(err.message || "Could not reset the board.");
   }
 }
 
@@ -167,8 +165,6 @@ function renderBoard(cards, remainingToday) {
   cards
     .sort((a, b) => a.order - b.order)
     .forEach((card) => {
-      const today = todayStr();
-      const openedToday = card.status === "opened" && card.openedDate === today;
       const isOpen = card.status === "opened";
 
       const cardEl = document.createElement("div");
@@ -197,16 +193,16 @@ function renderBoard(cards, remainingToday) {
       textEl.textContent = card.text;
       front.appendChild(textEl);
 
-      if (openedToday) {
-        const closeBtn = document.createElement("button");
-        closeBtn.className = "close-btn";
-        closeBtn.type = "button";
-        closeBtn.textContent = "Close & pick another";
-        closeBtn.addEventListener("click", (e) => {
+      if (isOpen) {
+        const goBtn = document.createElement("button");
+        goBtn.className = "lets-go-btn";
+        goBtn.type = "button";
+        goBtn.textContent = "Let's go! 💪";
+        goBtn.addEventListener("click", (e) => {
           e.stopPropagation();
-          closeCard(card.id);
+          showToast("Let's go! You've got this. 🔥");
         });
-        front.appendChild(closeBtn);
+        front.appendChild(goBtn);
       }
 
       inner.appendChild(back);
@@ -218,11 +214,10 @@ function renderBoard(cards, remainingToday) {
 
 function renderStatus(remainingToday) {
   if (remainingToday <= 0) {
-    statusEl.textContent = "🎉 Both challenges for today are picked. Come back tomorrow!";
+    statusEl.textContent = "🎉 Today's card is picked. Come back tomorrow!";
     statusEl.classList.add("limit-reached");
   } else {
-    const word = remainingToday === 1 ? "card" : "cards";
-    statusEl.textContent = `You can open ${remainingToday} more ${word} today.`;
+    statusEl.textContent = "You can open 1 card today.";
     statusEl.classList.remove("limit-reached");
   }
 }
@@ -244,6 +239,8 @@ async function init() {
   } catch (err) {
     console.error("Seeding failed:", err);
   }
+
+  resetBtn.addEventListener("click", resetBoard);
 
   onSnapshot(
     cardsCol,

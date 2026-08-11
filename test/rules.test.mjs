@@ -1,15 +1,16 @@
-// Tests the core shared-board logic (open/close transactions + Firestore security
+// Tests the core shared-board logic (open transaction + reset + Firestore security
 // rules) against the Firestore emulator. Run with the emulator active:
 //
 //   npx firebase emulators:exec --only firestore "node --test test/rules.test.mjs"
 //
-// This exercises the same open/close transaction logic used in app.js (duplicated
-// here against the emulator's modular SDK instance) plus the security rules in
-// firestore.rules, to verify:
-//   - up to 2 cards can be opened per day, a 3rd is rejected
-//   - closing a same-day-opened card frees up a slot for another open
+// This exercises the same open-transaction and reset logic used in app.js
+// (duplicated here against the emulator's modular SDK instance) plus the security
+// rules in firestore.rules, to verify:
+//   - only 1 card can be opened per day, a 2nd is rejected
+//   - opening an already-opened card is rejected (no way to "undo" a single card)
+//   - resetting the board closes every card and clears today's count, freeing up
+//     a new open
 //   - directly tampering with immutable fields (e.g. challenge text) is rejected
-//   - opening an already-opened card is rejected
 
 import test from "node:test";
 import assert from "node:assert/strict";
@@ -21,12 +22,15 @@ import {
 } from "@firebase/rules-unit-testing";
 import {
   doc,
+  collection,
+  getDocs,
   setDoc,
   runTransaction,
   updateDoc,
+  writeBatch,
 } from "firebase/firestore";
 
-const DAILY_LIMIT = 2;
+const DAILY_LIMIT = 1;
 const TODAY = "2099-01-01";
 
 let testEnv;
@@ -80,46 +84,27 @@ async function openCard(db, cardId, today = TODAY) {
   });
 }
 
-async function closeCard(db, cardId, today = TODAY) {
+async function resetBoard(db, today = TODAY) {
+  const cardsCol = collection(db, "cards");
   const metaRef = doc(db, "meta", "dailyCount");
-  await runTransaction(db, async (tx) => {
-    const cardRef = doc(db, "cards", cardId);
-    const [cardSnap, metaSnap] = await Promise.all([tx.get(cardRef), tx.get(metaRef)]);
-    const card = cardSnap.data();
-    if (card.status !== "opened" || card.openedDate !== today) {
-      throw new Error("cannot close");
+  const snap = await getDocs(cardsCol);
+  const batch = writeBatch(db);
+  snap.docs.forEach((d) => {
+    if (d.data().status === "opened") {
+      batch.update(d.ref, { status: "closed", openedDate: null });
     }
-    const meta = metaSnap.exists() ? metaSnap.data() : { date: today, count: 0 };
-    const currentCount = meta.date === today ? meta.count : 0;
-
-    tx.set(metaRef, { date: today, count: Math.max(0, currentCount - 1) });
-    tx.update(cardRef, { status: "closed", openedDate: null });
   });
+  batch.set(metaRef, { date: today, count: 0 });
+  await batch.commit();
 }
 
-test("allows opening up to the daily limit and rejects the next one", async () => {
+test("allows opening the single daily card and rejects a second one", async () => {
   const db = testEnv.unauthenticatedContext().firestore();
   await seedCard(db, "card-1");
   await seedCard(db, "card-2");
-  await seedCard(db, "card-3");
 
   await assertSucceeds(openCard(db, "card-1"));
-  await assertSucceeds(openCard(db, "card-2"));
-  await assert.rejects(() => openCard(db, "card-3"), /daily limit reached/);
-});
-
-test("closing a same-day card frees a slot for another open", async () => {
-  const db = testEnv.unauthenticatedContext().firestore();
-  await seedCard(db, "card-1");
-  await seedCard(db, "card-2");
-  await seedCard(db, "card-3");
-
-  await openCard(db, "card-1");
-  await openCard(db, "card-2");
-  await assert.rejects(() => openCard(db, "card-3"));
-
-  await assertSucceeds(closeCard(db, "card-1"));
-  await assertSucceeds(openCard(db, "card-3"));
+  await assert.rejects(() => openCard(db, "card-2"), /daily limit reached/);
 });
 
 test("cannot open a card that is already opened", async () => {
@@ -127,6 +112,25 @@ test("cannot open a card that is already opened", async () => {
   await seedCard(db, "card-1");
   await openCard(db, "card-1");
   await assert.rejects(() => openCard(db, "card-1"), /already opened/);
+});
+
+test("resetting the board closes every card and frees a new open", async () => {
+  const db = testEnv.unauthenticatedContext().firestore();
+  await seedCard(db, "card-1");
+  await seedCard(db, "card-2");
+
+  await openCard(db, "card-1");
+  await assert.rejects(() => openCard(db, "card-2"), /daily limit reached/);
+
+  await assertSucceeds(resetBoard(db));
+
+  const cardsSnap = await getDocs(collection(db, "cards"));
+  cardsSnap.docs.forEach((d) => {
+    assert.equal(d.data().status, "closed");
+    assert.equal(d.data().openedDate, null);
+  });
+
+  await assertSucceeds(openCard(db, "card-2"));
 });
 
 test("security rules reject tampering with immutable challenge text", async () => {
@@ -142,13 +146,11 @@ test("security rules reject an invalid status transition", async () => {
   const db = testEnv.unauthenticatedContext().firestore();
   await seedCard(db, "card-1");
 
-  // Directly setting status to 'opened' without going through the transaction
-  // shape (still uses updateDoc which keeps other fields, but let's simulate a
-  // bogus direct opened->opened no-op style write that isn't a real transition).
   await assertSucceeds(
     updateDoc(doc(db, "cards", "card-1"), { status: "opened", openedDate: TODAY })
   );
-  // Once opened, going straight to some invalid state should fail.
+  // Setting an opened card back to closed while leaving openedDate populated
+  // is not a valid transition (reset must clear openedDate to null).
   await assertFails(
     updateDoc(doc(db, "cards", "card-1"), { status: "closed", openedDate: TODAY })
   );

@@ -12,10 +12,10 @@
 // firestore.rules, not by keeping these values secret.
 
 export const firebaseConfig = {
-  apiKey: "YOUR_API_KEY",
-  authDomain: "YOUR_PROJECT_ID.firebaseapp.com",
-  projectId: "YOUR_PROJECT_ID",
-  storageBucket: "YOUR_PROJECT_ID.appspot.com",
-  messagingSenderId: "YOUR_SENDER_ID",
-  appId: "YOUR_APP_ID",
+  apiKey: "AIzaSyCGQhZsRzVsPUgpO5wVjZRPHUuECw70y10",
+  authDomain: "fitness-lottery.firebaseapp.com",
+  projectId: "fitness-lottery",
+  storageBucket: "fitness-lottery.firebasestorage.app",
+  messagingSenderId: "576782634970",
+  appId: "1:576782634970:web:07bdbef735e122ac45bae3"
 };

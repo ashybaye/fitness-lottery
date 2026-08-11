@@ -202,7 +202,7 @@ function renderBoard(cards, remainingToday) {
 
       const back = document.createElement("div");
       back.className = "card-face card-back" + (remainingToday <= 0 && !isOpen ? " disabled" : "");
-      back.innerHTML = `🃏<span class="card-number">#${card.order}</span>`;
+      back.innerHTML = `<span class="card-number">${card.order}</span>`;
       if (!isOpen) {
         back.addEventListener("click", async () => {
           if (remainingToday <= 0) {

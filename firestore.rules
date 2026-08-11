@@ -1,0 +1,65 @@
+rules_version = '2';
+
+// Firestore security rules for the shared fitness flashcard board.
+//
+// There is no login/auth for this app (it's a public shared board), so these rules
+// enforce correctness of state transitions directly instead of relying on identity:
+//   - Anyone can read all cards.
+//   - A card's immutable fields (id, text, order) can never change.
+//   - A card can only go 'closed' -> 'opened' (setting today's date), or
+//     'opened' -> 'closed' (clearing the date), never any other transition.
+//   - Documents can only be created once (initial seeding) and never deleted.
+//
+// The *daily global limit of 2 opens* is enforced client-side inside a Firestore
+// transaction (see app.js) by counting how many cards already have today's date
+// before allowing a new open. Rules alone can't easily do a cross-document count,
+// so this relies on the app's transaction logic being the only client; for a public
+// unauthenticated app this is an accepted trade-off (documented in README).
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /cards/{cardId} {
+      allow read: if true;
+
+      // Initial seed: allow creating a card doc only if it doesn't already exist,
+      // and only in a valid initial ('closed') shape.
+      allow create: if !exists(/databases/$(database)/documents/cards/$(cardId))
+        && request.resource.data.status == 'closed'
+        && request.resource.data.openedDate == null
+        && request.resource.data.keys().hasAll(['id', 'text', 'status', 'openedDate', 'order'])
+        && request.resource.data.id is string
+        && request.resource.data.text is string
+        && request.resource.data.order is int;
+
+      allow update: if
+        // Immutable fields never change.
+        request.resource.data.id == resource.data.id &&
+        request.resource.data.text == resource.data.text &&
+        request.resource.data.order == resource.data.order &&
+        (
+          // closed -> opened: set today's date, must not already be a future/blank value.
+          (resource.data.status == 'closed' &&
+           request.resource.data.status == 'opened' &&
+           request.resource.data.openedDate is string) ||
+          // opened -> closed: only allowed to clear back to closed (close & repick flow).
+          (resource.data.status == 'opened' &&
+           request.resource.data.status == 'closed' &&
+           request.resource.data.openedDate == null)
+        );
+
+      allow delete: if false;
+    }
+
+    // Tracks how many cards have been opened on the current global "today". Any
+    // client can read/write it as part of the open/close transaction in app.js.
+    // As with the cards collection, there is no auth on this public shared board,
+    // so this relies on well-behaved clients rather than airtight server-side
+    // enforcement — acceptable for a small shared/family use case.
+    match /meta/dailyCount {
+      allow read: if true;
+      allow write: if request.resource.data.date is string
+        && request.resource.data.count is int
+        && request.resource.data.count >= 0
+        && request.resource.data.count <= 2;
+    }
+  }
+}

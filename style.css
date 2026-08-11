@@ -1,0 +1,189 @@
+:root {
+  --bg: #0f1720;
+  --card-back-1: #6a4cff;
+  --card-back-2: #ff5da2;
+  --card-front: #142033;
+  --accent: #35e0a1;
+  --accent-warn: #ff8a5c;
+  --text: #f3f6fb;
+  --text-dim: #a7b3c6;
+  --radius: 14px;
+  --gap: 12px;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html, body {
+  margin: 0;
+  padding: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+.app-header {
+  padding: 20px 16px 12px;
+  text-align: center;
+}
+
+.app-header h1 {
+  margin: 0 0 6px;
+  font-size: 1.35rem;
+  line-height: 1.3;
+}
+
+.status-line {
+  margin: 0;
+  font-size: 0.95rem;
+  color: var(--text-dim);
+  min-height: 1.3em;
+}
+
+.status-line.limit-reached {
+  color: var(--accent-warn);
+  font-weight: 600;
+}
+
+main {
+  padding: 8px 12px 24px;
+  max-width: 640px;
+  margin: 0 auto;
+}
+
+.board {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: var(--gap);
+}
+
+@media (min-width: 420px) {
+  .board {
+    grid-template-columns: repeat(4, 1fr);
+  }
+}
+
+@media (min-width: 640px) {
+  .board {
+    grid-template-columns: repeat(5, 1fr);
+  }
+}
+
+.card {
+  position: relative;
+  aspect-ratio: 3 / 4;
+  perspective: 800px;
+}
+
+.card-inner {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  transition: transform 0.5s cubic-bezier(0.4, 0.2, 0.2, 1);
+  transform-style: preserve-3d;
+}
+
+.card.is-open .card-inner {
+  transform: rotateY(180deg);
+}
+
+.card-face {
+  position: absolute;
+  inset: 0;
+  border-radius: var(--radius);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  backface-visibility: hidden;
+  padding: 6px;
+  text-align: center;
+}
+
+.card-back {
+  background: linear-gradient(145deg, var(--card-back-1), var(--card-back-2));
+  color: #fff;
+  font-size: 1.6rem;
+  cursor: pointer;
+  user-select: none;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
+}
+
+.card-back .card-number {
+  position: absolute;
+  bottom: 6px;
+  right: 8px;
+  font-size: 0.65rem;
+  opacity: 0.85;
+}
+
+.card-back:active {
+  transform: scale(0.96);
+}
+
+.card-back.disabled {
+  cursor: not-allowed;
+  filter: grayscale(0.4);
+  opacity: 0.55;
+}
+
+.card-front {
+  background: var(--card-front);
+  transform: rotateY(180deg);
+  font-size: 0.7rem;
+  line-height: 1.25;
+  color: var(--text);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  gap: 6px;
+  overflow: hidden;
+}
+
+.card-front .challenge-text {
+  overflow-wrap: anywhere;
+}
+
+.close-btn {
+  position: absolute;
+  bottom: 6px;
+  font-size: 0.6rem;
+  background: rgba(255, 255, 255, 0.12);
+  color: var(--text);
+  border: none;
+  border-radius: 999px;
+  padding: 4px 8px;
+  cursor: pointer;
+}
+
+.close-btn:active {
+  background: rgba(255, 255, 255, 0.25);
+}
+
+.app-footer {
+  text-align: center;
+  padding: 8px 20px 28px;
+  color: var(--text-dim);
+  font-size: 0.8rem;
+}
+
+.toast {
+  position: fixed;
+  left: 50%;
+  bottom: 18px;
+  transform: translateX(-50%);
+  background: #1e293b;
+  color: var(--text);
+  padding: 10px 16px;
+  border-radius: 999px;
+  font-size: 0.85rem;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.4);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.25s ease;
+  z-index: 10;
+}
+
+.toast.visible {
+  opacity: 1;
+}

@@ -1,0 +1,15 @@
+{
+  "name": "fitness-lottery",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Mobile-first shared fitness flashcard board (static site, Firebase Firestore backend, deployed to GitHub Pages).",
+  "scripts": {
+    "start": "npx serve .",
+    "test:rules": "node --test test/rules.test.mjs"
+  },
+  "devDependencies": {
+    "@firebase/rules-unit-testing": "^3.0.4",
+    "firebase": "^10.13.0"
+  },
+  "license": "MIT"
+}

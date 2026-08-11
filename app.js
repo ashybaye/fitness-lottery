@@ -66,6 +66,10 @@ const metaDocRef = doc(db, "meta", "dailyCount");
 const boardEl = document.getElementById("board");
 const statusEl = document.getElementById("status-line");
 const resetBtn = document.getElementById("reset-btn");
+const zoomOverlay = document.getElementById("zoom-overlay");
+const zoomNumberEl = document.getElementById("zoom-number");
+const zoomTextEl = document.getElementById("zoom-text");
+const zoomGoBtn = document.getElementById("zoom-lets-go-btn");
 
 function todayStr() {
   const d = new Date();
@@ -132,10 +136,33 @@ async function openCard(cardId) {
       tx.set(metaDocRef, { date: today, count: currentCount + 1 });
       tx.update(cardRef, { status: "opened", openedDate: today });
     });
+    return true;
   } catch (err) {
     showToast(err.message || "Could not open card.");
+    return false;
   }
 }
+
+function openZoom(card) {
+  zoomNumberEl.textContent = `Card #${card.order}`;
+  zoomTextEl.textContent = card.text;
+  zoomOverlay.classList.add("visible");
+  zoomOverlay.setAttribute("aria-hidden", "false");
+}
+
+function closeZoom() {
+  zoomOverlay.classList.remove("visible");
+  zoomOverlay.setAttribute("aria-hidden", "true");
+}
+
+zoomGoBtn.addEventListener("click", () => {
+  closeZoom();
+  showToast("Let's go! You've got this. 🔥");
+});
+
+zoomOverlay.addEventListener("click", (e) => {
+  if (e.target === zoomOverlay) closeZoom();
+});
 
 async function resetBoard() {
   const confirmed = window.confirm(
@@ -177,12 +204,13 @@ function renderBoard(cards, remainingToday) {
       back.className = "card-face card-back" + (remainingToday <= 0 && !isOpen ? " disabled" : "");
       back.innerHTML = `🃏<span class="card-number">#${card.order}</span>`;
       if (!isOpen) {
-        back.addEventListener("click", () => {
+        back.addEventListener("click", async () => {
           if (remainingToday <= 0) {
             showToast("No opens left today. Come back tomorrow!");
             return;
           }
-          openCard(card.id);
+          const opened = await openCard(card.id);
+          if (opened) openZoom(card);
         });
       }
 
@@ -194,15 +222,7 @@ function renderBoard(cards, remainingToday) {
       front.appendChild(textEl);
 
       if (isOpen) {
-        const goBtn = document.createElement("button");
-        goBtn.className = "lets-go-btn";
-        goBtn.type = "button";
-        goBtn.textContent = "Let's go! 💪";
-        goBtn.addEventListener("click", (e) => {
-          e.stopPropagation();
-          showToast("Let's go! You've got this. 🔥");
-        });
-        front.appendChild(goBtn);
+        front.addEventListener("click", () => openZoom(card));
       }
 
       inner.appendChild(back);

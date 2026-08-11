@@ -21,6 +21,14 @@
     <p>Pick a card, take on the challenge. Once opened, a card stays revealed for good. Only 1 card can be opened per day for everyone sharing this board.</p>
   </footer>
 
+  <div id="zoom-overlay" class="zoom-overlay" aria-hidden="true">
+    <div class="zoom-card" role="dialog" aria-modal="true" aria-labelledby="zoom-text">
+      <div id="zoom-number" class="zoom-number"></div>
+      <div id="zoom-text" class="zoom-text"></div>
+      <button id="zoom-lets-go-btn" type="button" class="lets-go-btn zoom-lets-go-btn">Let's go! 💪</button>
+    </div>
+  </div>
+
   <script type="module" src="app.js"></script>
 </body>
 </html>

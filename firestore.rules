@@ -3,66 +3,96 @@ rules_version = '2';
 // Firestore security rules for the shared fitness flashcard board.
 //
 // There is no login/auth for this app (it's a public shared board), so these rules
-// enforce correctness of state transitions directly instead of relying on identity:
-//   - Anyone can read all cards.
-//   - A card's immutable fields (id, text, order) can never change.
-//   - A card can only go 'closed' -> 'opened' (setting today's date, normal pick flow),
-//     or 'opened' -> 'closed' (clearing the date, used only by the "Reset board" action
-//     which resets every card at once) — no other transition is allowed.
-//   - Documents can only be created once (initial seeding) and never deleted.
+// enforce correctness of state transitions directly instead of relying on identity.
+//
+// Card *content* (text, order) comes from a published Google Sheet and is synced into
+// Firestore by visitors' browsers (see card-sync.js), so content has to be writable.
+// Card *state* (status, openedDate) is owned by this app. The two concerns are kept
+// apart by allowing exactly two shapes of update, never both at once:
+//
+//   - state transition: status flips, content stays identical
+//       'closed' -> 'opened' (normal pick) or 'opened' -> 'closed' (reset board)
+//   - content sync:     text/order change, state stays identical
+//
+// That split means a sheet sync can never flip a card open, and opening a card can never
+// smuggle in different challenge text. Cards can also be created (a new sheet row) and
+// deleted (a removed sheet row).
 //
 // The *daily global limit of 1 open* is enforced client-side inside a Firestore
-// transaction (see app.js) by counting how many cards already have today's date
-// before allowing a new open. Rules alone can't easily do a cross-document count,
-// so this relies on the app's transaction logic being the only client; for a public
-// unauthenticated app this is an accepted trade-off (documented in README).
+// transaction (see board-store.js) by reading meta/dailyCount before allowing a new open.
+// Rules alone can't easily do a cross-document count, so this relies on the app's
+// transaction logic being the only client; for a public unauthenticated app this is an
+// accepted trade-off (documented in README).
 service cloud.firestore {
   match /databases/{database}/documents {
     match /cards/{cardId} {
       allow read: if true;
 
-      // Initial seed: allow creating a card doc only if it doesn't already exist,
-      // and only in a valid initial ('closed') shape.
-      allow create: if !exists(/databases/$(database)/documents/cards/$(cardId))
-        && request.resource.data.status == 'closed'
-        && request.resource.data.openedDate == null
-        && request.resource.data.keys().hasAll(['id', 'text', 'status', 'openedDate', 'order'])
-        && request.resource.data.id is string
+      // A card enters the board closed, with its document id matching its sheet id.
+      allow create: if request.resource.data.keys().hasAll(['id', 'text', 'status', 'openedDate', 'order'])
+        && request.resource.data.id == cardId
         && request.resource.data.text is string
-        && request.resource.data.order is int;
+        && request.resource.data.order is int
+        && request.resource.data.status == 'closed'
+        && request.resource.data.openedDate == null;
 
-      allow update: if
-        // Immutable fields never change.
-        request.resource.data.id == resource.data.id &&
-        request.resource.data.text == resource.data.text &&
-        request.resource.data.order == resource.data.order &&
-        (
+      allow update: if isStateTransition() || isContentSync();
+
+      // A row removed from the sheet removes its card. Rules can't see the sheet, so
+      // this can't be conditioned on the sheet's contents — see README's limitations.
+      allow delete: if true;
+    }
+
+    // Content is identical; only the open/closed state moves, and only along a legal edge.
+    function isStateTransition() {
+      return request.resource.data.id == resource.data.id
+        && request.resource.data.text == resource.data.text
+        && request.resource.data.order == resource.data.order
+        && (
           // closed -> opened: set today's date. This is permanent in the normal flow
           // (the UI never offers a way to undo a single card's open).
-          (resource.data.status == 'closed' &&
-           request.resource.data.status == 'opened' &&
-           request.resource.data.openedDate is string) ||
+          (resource.data.status == 'closed'
+            && request.resource.data.status == 'opened'
+            && request.resource.data.openedDate is string)
+          ||
           // opened -> closed: only allowed to clear back to closed. Used exclusively
-          // by the "Reset board" action, which resets all 30 cards together.
-          (resource.data.status == 'opened' &&
-           request.resource.data.status == 'closed' &&
-           request.resource.data.openedDate == null)
+          // by the "Reset board" action, which resets every card together.
+          (resource.data.status == 'opened'
+            && request.resource.data.status == 'closed'
+            && request.resource.data.openedDate == null)
         );
+    }
 
-      allow delete: if false;
+    // State is identical; only sheet-owned content moves. The card's id is still fixed —
+    // renaming an id in the sheet is a delete plus a create, not an update.
+    function isContentSync() {
+      return request.resource.data.id == resource.data.id
+        && request.resource.data.status == resource.data.status
+        && request.resource.data.openedDate == resource.data.openedDate
+        && request.resource.data.text is string
+        && request.resource.data.order is int;
     }
 
     // Tracks how many cards have been opened on the current global "today". Any
     // client can read/write it as part of the open transaction (or the reset action)
-    // in app.js. As with the cards collection, there is no auth on this public shared
-    // board, so this relies on well-behaved clients rather than airtight server-side
-    // enforcement — acceptable for a small shared/family use case.
+    // in board-store.js. As with the cards collection, there is no auth on this public
+    // shared board, so this relies on well-behaved clients rather than airtight
+    // server-side enforcement — acceptable for a small shared/family use case.
     match /meta/dailyCount {
       allow read: if true;
       allow write: if request.resource.data.date is string
         && request.resource.data.count is int
         && request.resource.data.count >= 0
         && request.resource.data.count <= 1;
+    }
+
+    // Bookkeeping for the sheet sync: when the board last pulled from the sheet, and a
+    // fingerprint of what it pulled. Lets visitors skip redundant fetches and writes.
+    match /meta/sheetSync {
+      allow read: if true;
+      allow write: if request.resource.data.keys().hasOnly(['lastSyncedAt', 'sourceHash'])
+        && request.resource.data.lastSyncedAt is number
+        && request.resource.data.sourceHash is string;
     }
   }
 }

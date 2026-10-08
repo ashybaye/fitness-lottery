@@ -17,7 +17,7 @@
 // Note: publishing makes that sheet readable by anyone who has the URL, and the URL ships
 // in this file to every visitor. Don't put anything private in the sheet.
 
-export const SHEET_CSV_URL = "PASTE_YOUR_PUBLISHED_CSV_URL_HERE";
+export const SHEET_CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vQ1b5Zo4YmcbDJONBvUhWd0cj--uJyMBoIMCfSM_Po1gLA9p7aALU0xy33JkjPd6s4w2YO7VKRCvQSn/pub?output=csv";
 
 // How long to wait before any visitor's browser re-fetches the sheet. The first visitor
 // after this window syncs; everyone else just reads the already-synced board from

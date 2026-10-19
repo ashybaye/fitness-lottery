@@ -122,13 +122,13 @@ export function renderStatus({ remainingToday, cards }) {
   }
 
   if (remainingToday <= 0) {
-    statusEl.textContent = "🎉 Today's card is picked. Come back tomorrow!";
+    statusEl.textContent = "🎉 Today's two cards are picked. Come back tomorrow!";
     statusEl.classList.add("limit-reached");
     return;
   }
 
   const closed = cards.filter((card) => card.status === "closed").length;
-  statusEl.textContent = `You can open 1 card today — ${closed} of ${cards.length} still closed.`;
+  statusEl.textContent = `You can open up to 2 cards today — ${closed} of ${cards.length} still closed.`;
   statusEl.classList.remove("limit-reached");
 }
 

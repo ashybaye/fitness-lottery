@@ -6,7 +6,7 @@
 // This exercises the same open-transaction and reset logic used in board-store.js
 // (duplicated here against the emulator's modular SDK instance) plus the security
 // rules in firestore.rules, to verify:
-//   - only 1 card can be opened per day, a 2nd is rejected
+//   - only 2 cards can be opened per day, a 3rd is rejected
 //   - opening an already-opened card is rejected (no way to "undo" a single card)
 //   - resetting the board closes every card and clears today's count, freeing up
 //     a new open
@@ -37,7 +37,7 @@ import {
 
 import { diffCards } from "../card-sync.js";
 
-const DAILY_LIMIT = 1;
+const DAILY_LIMIT = 2;
 const TODAY = "2099-01-01";
 
 let testEnv;
@@ -119,13 +119,15 @@ async function applySheetSync(db, sheetCards, { now = 1, sourceHash = "abc123" }
   await batch.commit();
 }
 
-test("allows opening the single daily card and rejects a second one", async () => {
+test("allows opening two daily cards and rejects a third", async () => {
   const db = testEnv.unauthenticatedContext().firestore();
   await seedCard(db, "card-1");
   await seedCard(db, "card-2");
+  await seedCard(db, "card-3");
 
   await assertSucceeds(openCard(db, "card-1"));
-  await assert.rejects(() => openCard(db, "card-2"), /daily limit reached/);
+  await assertSucceeds(openCard(db, "card-2"));
+  await assert.rejects(() => openCard(db, "card-3"), /daily limit reached/);
 });
 
 test("cannot open a card that is already opened", async () => {
@@ -139,9 +141,11 @@ test("resetting the board closes every card and frees a new open", async () => {
   const db = testEnv.unauthenticatedContext().firestore();
   await seedCard(db, "card-1");
   await seedCard(db, "card-2");
+  await seedCard(db, "card-3");
 
   await openCard(db, "card-1");
-  await assert.rejects(() => openCard(db, "card-2"), /daily limit reached/);
+  await assertSucceeds(openCard(db, "card-2"));
+  await assert.rejects(() => openCard(db, "card-3"), /daily limit reached/);
 
   await assertSucceeds(resetBoard(db));
 
@@ -151,7 +155,7 @@ test("resetting the board closes every card and frees a new open", async () => {
     assert.equal(d.data().openedDate, null);
   });
 
-  await assertSucceeds(openCard(db, "card-2"));
+  await assertSucceeds(openCard(db, "card-3"));
 });
 
 test("a sheet sync can change challenge text without touching card state", async () => {

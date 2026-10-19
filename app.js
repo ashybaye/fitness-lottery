@@ -1,7 +1,7 @@
 // Fitness Challenge Deck — app wiring.
 //
 // Card *content* comes from a published Google Sheet (sheet-config.js, sheet-source.js).
-// Card *state* — which cards are open, and the global 1-per-day counter — lives in
+// Card *state* — which cards are open, and the global 2-per-day counter — lives in
 // Firestore (board-store.js). On load, the first visitor after a cooldown window
 // reconciles the sheet into Firestore (card-sync.js); everyone else just reads the board.
 //

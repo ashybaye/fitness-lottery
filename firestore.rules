@@ -18,7 +18,7 @@ rules_version = '2';
 // smuggle in different challenge text. Cards can also be created (a new sheet row) and
 // deleted (a removed sheet row).
 //
-// The *daily global limit of 1 open* is enforced client-side inside a Firestore
+// The *daily global limit of 2 opens* is enforced client-side inside a Firestore
 // transaction (see board-store.js) by reading meta/dailyCount before allowing a new open.
 // Rules alone can't easily do a cross-document count, so this relies on the app's
 // transaction logic being the only client; for a public unauthenticated app this is an

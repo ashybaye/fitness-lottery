@@ -6,7 +6,7 @@
 //
 // Data model:
 //   cards/{sheetId}   -> { id, order, text, status: 'closed'|'opened', openedDate: 'YYYY-MM-DD'|null }
-//   meta/dailyCount   -> { date: 'YYYY-MM-DD', count: 0..1 }  (global opens used today)
+//   meta/dailyCount   -> { date: 'YYYY-MM-DD', count: 0..2 }  (global opens used today)
 //   meta/sheetSync    -> { lastSyncedAt: epoch ms, sourceHash: string }
 
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-app.js";
@@ -24,7 +24,7 @@ import {
 import { firebaseConfig } from "./firebase-config.js";
 import { assertDiffFitsBatch } from "./card-sync.js";
 
-export const DAILY_LIMIT = 1;
+export const DAILY_LIMIT = 2;
 
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
@@ -107,7 +107,7 @@ export async function openCard(cardId) {
     const currentCount = meta.date === today ? meta.count : 0;
 
     if (currentCount >= DAILY_LIMIT) {
-      throw new Error("Today's card has already been picked. Come back tomorrow!");
+      throw new Error("Today's two cards have already been picked. Come back tomorrow!");
     }
 
     tx.set(dailyCountRef, { date: today, count: currentCount + 1 });

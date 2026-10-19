@@ -1,7 +1,7 @@
 # 🃏 Fitness Challenge Deck
 
 A mobile-first, shared flashcard board of fitness challenges. Anyone visiting the site
-sees the same board. Cards can be opened to reveal a challenge, but only **1 card total**
+sees the same board. Cards can be opened to reveal a challenge, but only **2 cards total**
 can be opened per day across everyone sharing the board. Once a card is opened it stays
 revealed permanently — there's no way to undo a single pick. A "Reset board" button lets
 anyone start the whole deck over from scratch (with a confirmation prompt).
@@ -150,7 +150,7 @@ Google Sheet ──CSV──▶ sheet-source.js ──▶ card-sync.js ──dif
 | `.github/workflows/deploy-pages.yml` | Publishes this static site to GitHub Pages on every push to `main` |
 
 Opening a card runs inside a **Firestore transaction** that also reads and writes
-`meta/dailyCount`, so the global "1 card per day" limit holds even if several people tap a
+`meta/dailyCount`, so the global "2 cards per day" limit holds even if several people tap a
 card at the same moment. A sheet sync applies all its creates, updates, and deletes in a
 single batch, so the board never renders a half-synced deck. Two visitors syncing at once
 compute the same diff, so the writes are idempotent.
@@ -160,7 +160,7 @@ compute the same diff, so the writes are idempotent.
 - `cards/{sheetId}` — `{ id, order, text, status: 'closed' | 'opened', openedDate: 'YYYY-MM-DD' | null }`
   The document id is the `id` from the sheet. `text` and `order` are owned by the sheet;
   `status` and `openedDate` are owned by the app.
-- `meta/dailyCount` — `{ date: 'YYYY-MM-DD', count: 0..1 }` — how many cards have been opened
+- `meta/dailyCount` — `{ date: 'YYYY-MM-DD', count: 0..2 }` — how many cards have been opened
   on the current day, globally.
 - `meta/sheetSync` — `{ lastSyncedAt: <epoch ms>, sourceHash: <string> }` — when the board
   last pulled from the sheet, and a fingerprint of what it pulled.

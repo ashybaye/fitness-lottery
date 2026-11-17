@@ -2,6 +2,8 @@
 // the sheet-sync notice. This module knows nothing about Firestore or Google Sheets —
 // it takes plain card objects and calls back when the user acts.
 
+import { isYoutubeVideoUrl } from "./video-url.js";
+
 const boardEl = document.getElementById("board");
 const statusEl = document.getElementById("status-line");
 const resetBtn = document.getElementById("reset-btn");
@@ -30,9 +32,24 @@ export function showSyncNotice(message) {
   noticeEl.hidden = false;
 }
 
+function setChallengeText(container, card) {
+  container.replaceChildren();
+  if (isYoutubeVideoUrl(card.url)) {
+    const link = document.createElement("a");
+    link.href = card.url;
+    link.target = "_blank";
+    link.rel = "noopener noreferrer";
+    link.textContent = card.text;
+    link.addEventListener("click", (event) => event.stopPropagation());
+    container.appendChild(link);
+  } else {
+    container.textContent = card.text;
+  }
+}
+
 function openZoom(card) {
   zoomNumberEl.textContent = `Card #${card.order}`;
-  zoomTextEl.textContent = card.text;
+  setChallengeText(zoomTextEl, card);
   zoomOverlay.classList.add("visible");
   zoomOverlay.setAttribute("aria-hidden", "false");
 }
@@ -100,7 +117,7 @@ export function renderBoard(cards, { remainingToday, onOpen }) {
       front.className = "card-face card-front";
       const textEl = document.createElement("div");
       textEl.className = "challenge-text";
-      textEl.textContent = card.text;
+      setChallengeText(textEl, card);
       front.appendChild(textEl);
 
       if (isOpen) {

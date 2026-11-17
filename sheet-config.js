@@ -2,17 +2,17 @@
 //
 // The board's challenges live in a Google Sheet, not in this repo. To wire yours up:
 //
-//   1. Create a sheet whose first row is exactly:  id | text
+//   1. Create a sheet whose first row is:  id | text | url
 //      - `id` is a short, stable, unique slug (e.g. `yoga-40`). It becomes the card's
 //        Firestore document id, so keep it stable — changing it is treated as deleting
 //        one card and creating another, which loses that card's opened state.
 //      - `text` is the challenge shown on the card.
+//      - `url` is an optional HTTPS YouTube video link shown on the challenge text.
 //   2. File → Share → Publish to web → pick that sheet → Comma-separated values (.csv).
 //   3. Paste the generated URL below.
 //
-// `challenges.csv` in this repo is an export of the deck that's already live, ready to
-// import into a new sheet via File → Import. Its ids match the existing Firestore
-// document ids, so importing it as-is keeps every opened card's state.
+// `challenges.csv` is a legacy sample deck. Use the existing published sheet to retain
+// the current board's ids and opened-card state.
 //
 // Note: publishing makes that sheet readable by anyone who has the URL, and the URL ships
 // in this file to every visitor. Don't put anything private in the sheet.

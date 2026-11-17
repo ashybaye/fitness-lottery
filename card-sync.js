@@ -38,6 +38,7 @@ export function diffCards(sheetCards, storedCards) {
         id: card.id,
         order: card.order,
         text: card.text,
+        url: card.url ?? "",
         status: "closed",
         openedDate: null,
       });
@@ -47,6 +48,7 @@ export function diffCards(sheetCards, storedCards) {
     const changes = {};
     if (existing.text !== card.text) changes.text = card.text;
     if (existing.order !== card.order) changes.order = card.order;
+    if ((existing.url ?? "") !== (card.url ?? "")) changes.url = card.url ?? "";
     if (Object.keys(changes).length > 0) updates.push({ id: card.id, changes });
   }
 

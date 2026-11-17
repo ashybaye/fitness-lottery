@@ -5,9 +5,10 @@
 // directly. See sheet-config.js for setup.
 //
 // Everything here is content-only: this module knows nothing about Firestore, card state,
-// or the DOM. It turns a URL into a validated, ordered list of { id, text, order }.
+// or the DOM. It turns a URL into a validated, ordered list of { id, text, url, order }.
 
 import { parseCsv } from "./csv.js";
+import { isYoutubeVideoUrl } from "./video-url.js";
 
 export class SheetError extends Error {
   constructor(message, { cause } = {}) {
@@ -67,6 +68,7 @@ export function parseChallenges(csvText) {
   }
 
   const columns = findColumns(rows[0]);
+  const urlColumn = rows[0].findIndex((h) => h.trim().toLowerCase() === "url");
   const cards = [];
   const seen = new Map();
 
@@ -75,6 +77,7 @@ export function parseChallenges(csvText) {
     const sheetRowNumber = i + 1;
     const id = (row[columns.id] ?? "").trim();
     const text = (row[columns.text] ?? "").trim();
+    const url = urlColumn === -1 ? "" : (row[urlColumn] ?? "").trim();
 
     // A row with neither value is leftover spreadsheet padding, not an error.
     if (id === "" && text === "") continue;
@@ -86,6 +89,11 @@ export function parseChallenges(csvText) {
     if (text === "") {
       throw new SheetError(`Row ${sheetRowNumber}: the "text" value is empty (id "${id}").`);
     }
+    if (url !== "" && !isYoutubeVideoUrl(url)) {
+      throw new SheetError(
+        `Row ${sheetRowNumber}: the "url" value must be a valid HTTPS YouTube video link (id "${id}").`
+      );
+    }
     if (seen.has(id)) {
       throw new SheetError(
         `Row ${sheetRowNumber}: duplicate id "${id}" (already used on row ${seen.get(id)}). ` +
@@ -94,7 +102,7 @@ export function parseChallenges(csvText) {
     }
 
     seen.set(id, sheetRowNumber);
-    cards.push({ id, text, order: cards.length + 1 });
+    cards.push({ id, text, url, order: cards.length + 1 });
   }
 
   if (cards.length === 0) {
@@ -144,7 +152,9 @@ export async function fetchChallenges(url, fetchImpl = globalThis.fetch) {
  * @returns {string}
  */
 export function hashChallenges(cards) {
-  const serialized = cards.map((c) => `${c.order}\u0000${c.id}\u0000${c.text}`).join("\u0001");
+  const serialized = cards
+    .map((c) => `${c.order}\u0000${c.id}\u0000${c.text}\u0000${c.url ?? ""}`)
+    .join("\u0001");
   let hash = 0x811c9dc5;
   for (let i = 0; i < serialized.length; i += 1) {
     hash ^= serialized.charCodeAt(i);

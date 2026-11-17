@@ -170,6 +170,31 @@ test("a sheet sync can change challenge text without touching card state", async
   assert.equal(after.data().openedDate, TODAY);
 });
 
+test("a sheet sync can add or change a valid YouTube link without changing card state", async () => {
+  const db = testEnv.unauthenticatedContext().firestore();
+  await seedCard(db, "card-1", {
+    url: "https://www.youtube.com/watch?v=old",
+    status: "opened",
+    openedDate: TODAY,
+  });
+
+  await assertSucceeds(
+    updateDoc(doc(db, "cards", "card-1"), {
+      url: "https://www.youtube.com/watch?v=new",
+    })
+  );
+  await assertFails(
+    updateDoc(doc(db, "cards", "card-1"), {
+      url: "javascript:alert(1)",
+    })
+  );
+
+  const after = await getDoc(doc(db, "cards", "card-1"));
+  assert.equal(after.data().url, "https://www.youtube.com/watch?v=new");
+  assert.equal(after.data().status, "opened");
+  assert.equal(after.data().openedDate, TODAY);
+});
+
 test("security rules reject changing text and status in the same write", async () => {
   const db = testEnv.unauthenticatedContext().firestore();
   await seedCard(db, "card-1", { text: "Original text" });
@@ -236,7 +261,7 @@ test("syncing a sheet creates, updates, and deletes cards while preserving opens
     applySheetSync(db, [
       { id: "run", text: "Run a mile", order: 1 },
       { id: "walk", text: "Walk two miles", order: 2 },
-      { id: "swim", text: "Swim 20 laps", order: 3 },
+      { id: "swim", text: "Swim 20 laps", url: "https://youtu.be/swim", order: 3 },
     ])
   );
 
@@ -251,6 +276,7 @@ test("syncing a sheet creates, updates, and deletes cards while preserving opens
   assert.equal(byId.run.status, "opened");
   assert.equal(byId.run.openedDate, TODAY);
   assert.equal(byId.swim.status, "closed");
+  assert.equal(byId.swim.url, "https://youtu.be/swim");
 
   const syncMeta = await getDoc(doc(db, "meta", "sheetSync"));
   assert.equal(syncMeta.data().sourceHash, "abc123");
@@ -270,6 +296,14 @@ test("security rules reject writes to an unknown meta document", async () => {
   const db = testEnv.unauthenticatedContext().firestore();
 
   await assertFails(setDoc(doc(db, "meta", "somethingElse"), { anything: true }));
+});
+
+test("daily count allows two opens and rejects a third", async () => {
+  const db = testEnv.unauthenticatedContext().firestore();
+  const ref = doc(db, "meta", "dailyCount");
+
+  await assertSucceeds(setDoc(ref, { date: TODAY, count: 2 }));
+  await assertFails(setDoc(ref, { date: TODAY, count: 3 }));
 });
 
 test("security rules reject an invalid status transition", async () => {

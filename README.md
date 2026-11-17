@@ -15,21 +15,22 @@ hosted for free on **GitHub Pages**.
 
 ## 1. Create the challenge sheet
 
-1. Create a Google Sheet whose **first row is a header** with these two columns:
+1. Create a Google Sheet whose **first row is a header** with these columns:
 
-   | id | text |
-   |----|------|
-   | `mobility-40` | `🧘 40-minute mobility workout` |
-   | `yoga-40` | `🧘 40-minute yoga session` |
+   | id | text | url |
+   |----|------|-----|
+   | `mobility-40` | `🧘 40-minute mobility workout` | `https://www.youtube.com/watch?v=...` |
+   | `yoga-40` | `🧘 40-minute yoga session` | `https://www.youtube.com/watch?v=...` |
 
    - **`id`** — a short, stable, unique slug. It becomes the card's Firestore document
      id, which is how a card keeps its opened/closed state when you edit the sheet.
    - **`text`** — the challenge shown on the card.
+   - **`url`** — an optional HTTPS YouTube video link. When present, the challenge text is
+     clickable and opens the video in a new tab.
 
-   To start from the deck that's already live, use **File → Import** and upload
-   [`challenges.csv`](./challenges.csv) from this repo. It's an export of the current
-   board, and its `id` values (`card-1` … `card-30`) match the existing Firestore
-   document ids — so the first sync is a no-op and no already-opened card is lost.
+   The existing published sheet is already wired to this board. Keep its IDs unchanged to
+   preserve each card's opened state. [`challenges.csv`](./challenges.csv) is a legacy
+   sample deck and does not represent the current published sheet.
 
    > ⚠️ If you build the sheet from scratch with different `id` values, the first sync
    > deletes every existing card and creates new closed ones, wiping the board's
@@ -51,6 +52,7 @@ The first visitor after a cooldown window (5 minutes by default — `SYNC_COOLDO
 | You do this in the sheet | The board does this |
 |---|---|
 | Edit a `text` cell | The card's challenge text updates, open or closed |
+| Edit a `url` cell | The clickable video link updates |
 | Reorder rows | Card numbers change; an opened card stays opened |
 | Add a row | A new closed card appears at that position |
 | Delete a row | That card disappears, **even if it was already opened** |
@@ -79,7 +81,7 @@ shows a banner explaining that it may be stale.
 These rules allow public read/write (there's no login for this app) but constrain writes
 to valid shapes. In particular, a card update must be *either* a state transition
 (`closed → opened`, or `opened → closed` for the reset action) *or* a content sync from
-the sheet (`text`/`order` change) — never both. So a sheet sync can't flip a card open,
+the sheet (`text`/`url`/`order` change) — never both. So a sheet sync can't flip a card open,
 and opening a card can't smuggle in different challenge text.
 
 ## 4. Run locally
@@ -139,7 +141,8 @@ Google Sheet ──CSV──▶ sheet-source.js ──▶ card-sync.js ──dif
 | `index.html` / `style.css` | Mobile-first markup and styling for the card grid, the flip animation, the zoom modal, and the "Reset board" button |
 | `sheet-config.js` | Your published CSV URL and the sync cooldown |
 | `csv.js` | A small RFC 4180 CSV parser (quoted fields, embedded commas and newlines) |
-| `sheet-source.js` | Fetches and validates the sheet into an ordered `{ id, text, order }` list |
+| `sheet-source.js` | Fetches and validates the sheet into an ordered `{ id, text, url, order }` list |
+| `video-url.js` | Validates YouTube video URLs before the board renders them as links |
 | `card-sync.js` | Pure diff of sheet content against stored cards, plus the cooldown and batch-size rules |
 | `board-store.js` | The only module that talks to Firestore: live subscriptions, the open transaction, reset, and applying a sheet diff |
 | `board-ui.js` | All DOM work: rendering the board, status line, zoom modal, toast, and sync banner |
@@ -157,9 +160,10 @@ compute the same diff, so the writes are idempotent.
 
 ## Data model
 
-- `cards/{sheetId}` — `{ id, order, text, status: 'closed' | 'opened', openedDate: 'YYYY-MM-DD' | null }`
+- `cards/{sheetId}` — `{ id, order, text, url, status: 'closed' | 'opened', openedDate: 'YYYY-MM-DD' | null }`
   The document id is the `id` from the sheet. `text` and `order` are owned by the sheet;
-  `status` and `openedDate` are owned by the app.
+  `url` is an optional YouTube video link owned by the sheet; `status` and `openedDate`
+  are owned by the app.
 - `meta/dailyCount` — `{ date: 'YYYY-MM-DD', count: 0..2 }` — how many cards have been opened
   on the current day, globally.
 - `meta/sheetSync` — `{ lastSyncedAt: <epoch ms>, sourceHash: <string> }` — when the board

@@ -26,8 +26,8 @@ test("creates every card when Firestore is empty", () => {
   const diff = diffCards([sheetCard("a", "Walk", 1), sheetCard("b", "Run", 2)], []);
 
   assert.deepEqual(diff.creates, [
-    { id: "a", order: 1, text: "Walk", status: "closed", openedDate: null },
-    { id: "b", order: 2, text: "Run", status: "closed", openedDate: null },
+    { id: "a", order: 1, text: "Walk", url: "", status: "closed", openedDate: null },
+    { id: "b", order: 2, text: "Run", url: "", status: "closed", openedDate: null },
   ]);
   assert.deepEqual(diff.updates, []);
   assert.deepEqual(diff.deletes, []);
@@ -50,6 +50,24 @@ test("updates only the fields that changed, never card state", () => {
   );
 
   assert.deepEqual(diff.updates, [{ id: "a", changes: { text: "Walk two miles" } }]);
+  assert.deepEqual(diff.creates, []);
+  assert.deepEqual(diff.deletes, []);
+});
+
+test("syncs a changed video URL without changing card state", () => {
+  const diff = diffCards(
+    [{ id: "a", text: "Walk", url: "https://youtu.be/new", order: 1 }],
+    [
+      storedCard("a", "Walk", 1, {
+        status: "opened",
+        openedDate: "2099-01-01",
+      }),
+    ]
+  );
+
+  assert.deepEqual(diff.updates, [
+    { id: "a", changes: { url: "https://youtu.be/new" } },
+  ]);
   assert.deepEqual(diff.creates, []);
   assert.deepEqual(diff.deletes, []);
 });
@@ -79,7 +97,7 @@ test("inserting a row creates the new card and renumbers the rest", () => {
   );
 
   assert.deepEqual(diff.creates, [
-    { id: "c", order: 2, text: "Swim", status: "closed", openedDate: null },
+    { id: "c", order: 2, text: "Swim", url: "", status: "closed", openedDate: null },
   ]);
   assert.deepEqual(diff.updates, [{ id: "b", changes: { order: 3 } }]);
   assert.deepEqual(diff.deletes, []);
@@ -104,7 +122,7 @@ test("renaming an id is a delete plus a create", () => {
 
   assert.deepEqual(diff.deletes, ["a"]);
   assert.deepEqual(diff.creates, [
-    { id: "a2", order: 1, text: "Walk", status: "closed", openedDate: null },
+    { id: "a2", order: 1, text: "Walk", url: "", status: "closed", openedDate: null },
   ]);
 });
 

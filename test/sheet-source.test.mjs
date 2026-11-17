@@ -33,6 +33,7 @@ test("parses the bundled challenges.csv into 30 ordered cards", () => {
   assert.deepEqual(cards[0], {
     id: "card-1",
     text: "🏋️ 40-Min Full-Body Strength Workout",
+    url: "",
     order: 1,
   });
   assert.deepEqual(
@@ -63,13 +64,37 @@ test("round-trips text containing escaped double quotes", () => {
 test("accepts headers in any order and any casing, with surrounding whitespace", () => {
   const cards = parseChallenges("  Text , ID \nWalk a mile, walk-1 ");
 
-  assert.deepEqual(cards, [{ id: "walk-1", text: "Walk a mile", order: 1 }]);
+  assert.deepEqual(cards, [{ id: "walk-1", text: "Walk a mile", url: "", order: 1 }]);
 });
 
 test("ignores extra columns", () => {
   const cards = parseChallenges("id,text,notes\nwalk-1,Walk a mile,added by Sam");
 
-  assert.deepEqual(cards, [{ id: "walk-1", text: "Walk a mile", order: 1 }]);
+  assert.deepEqual(cards, [{ id: "walk-1", text: "Walk a mile", url: "", order: 1 }]);
+});
+
+test("parses YouTube video links from the url column", () => {
+  const cards = parseChallenges(
+    "id,text,url\nwalk-1,Walk a mile,https://www.youtube.com/watch?v=abc_123"
+  );
+
+  assert.deepEqual(cards, [
+    {
+      id: "walk-1",
+      text: "Walk a mile",
+      url: "https://www.youtube.com/watch?v=abc_123",
+      order: 1,
+    },
+  ]);
+});
+
+test("rejects non-YouTube or insecure video links", () => {
+  for (const url of ["http://www.youtube.com/watch?v=abc", "https://example.com/video"]) {
+    assert.throws(() => parseChallenges(`id,text,url\nwalk-1,Walk a mile,${url}`), {
+      name: "SheetError",
+      message: /valid HTTPS YouTube video link/,
+    });
+  }
 });
 
 test("skips fully blank rows without affecting order", () => {
@@ -138,7 +163,7 @@ test("fetches and parses a published sheet", async () => {
     stubFetch({ body: "id,text\nwalk-1,Walk a mile" })
   );
 
-  assert.deepEqual(cards, [{ id: "walk-1", text: "Walk a mile", order: 1 }]);
+  assert.deepEqual(cards, [{ id: "walk-1", text: "Walk a mile", url: "", order: 1 }]);
 });
 
 test("reports an unconfigured sheet URL", async () => {
@@ -176,6 +201,11 @@ test("hash is stable for identical content and sensitive to any change", () => {
 
   const editedText = cards.map((c, i) => (i === 0 ? { ...c, text: `${c.text}!` } : c));
   assert.notEqual(hashChallenges(cards), hashChallenges(editedText));
+
+  const editedUrl = cards.map((c, i) =>
+    i === 0 ? { ...c, url: "https://youtu.be/abc" } : c
+  );
+  assert.notEqual(hashChallenges(cards), hashChallenges(editedUrl));
 
   const reordered = [cards[1], cards[0], ...cards.slice(2)].map((c, i) => ({
     ...c,

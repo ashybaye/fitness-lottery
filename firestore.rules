@@ -5,14 +5,14 @@ rules_version = '2';
 // There is no login/auth for this app (it's a public shared board), so these rules
 // enforce correctness of state transitions directly instead of relying on identity.
 //
-// Card *content* (text, order) comes from a published Google Sheet and is synced into
+// Card *content* (text, URL, order) comes from a published Google Sheet and is synced into
 // Firestore by visitors' browsers (see card-sync.js), so content has to be writable.
 // Card *state* (status, openedDate) is owned by this app. The two concerns are kept
 // apart by allowing exactly two shapes of update, never both at once:
 //
 //   - state transition: status flips, content stays identical
 //       'closed' -> 'opened' (normal pick) or 'opened' -> 'closed' (reset board)
-//   - content sync:     text/order change, state stays identical
+//   - content sync:     text/URL/order change, state stays identical
 //
 // That split means a sheet sync can never flip a card open, and opening a card can never
 // smuggle in different challenge text. Cards can also be created (a new sheet row) and
@@ -30,8 +30,10 @@ service cloud.firestore {
 
       // A card enters the board closed, with its document id matching its sheet id.
       allow create: if request.resource.data.keys().hasAll(['id', 'text', 'status', 'openedDate', 'order'])
+        && request.resource.data.keys().hasOnly(['id', 'text', 'url', 'status', 'openedDate', 'order'])
         && request.resource.data.id == cardId
         && request.resource.data.text is string
+        && isValidVideoUrl(request.resource.data.get('url', ''))
         && request.resource.data.order is int
         && request.resource.data.status == 'closed'
         && request.resource.data.openedDate == null;
@@ -47,6 +49,7 @@ service cloud.firestore {
     function isStateTransition() {
       return request.resource.data.id == resource.data.id
         && request.resource.data.text == resource.data.text
+        && request.resource.data.get('url', '') == resource.data.get('url', '')
         && request.resource.data.order == resource.data.order
         && (
           // closed -> opened: set today's date. This is permanent in the normal flow
@@ -70,7 +73,14 @@ service cloud.firestore {
         && request.resource.data.status == resource.data.status
         && request.resource.data.openedDate == resource.data.openedDate
         && request.resource.data.text is string
+        && isValidVideoUrl(request.resource.data.get('url', ''))
         && request.resource.data.order is int;
+    }
+
+    function isValidVideoUrl(url) {
+      return url == ''
+        || (url is string
+          && url.matches('^https://(www[.])?youtube[.]com/.*$|^https://youtu[.]be/.*$'));
     }
 
     // Tracks how many cards have been opened on the current global "today". Any
@@ -83,7 +93,7 @@ service cloud.firestore {
       allow write: if request.resource.data.date is string
         && request.resource.data.count is int
         && request.resource.data.count >= 0
-        && request.resource.data.count <= 1;
+        && request.resource.data.count <= 2;
     }
 
     // Bookkeeping for the sheet sync: when the board last pulled from the sheet, and a

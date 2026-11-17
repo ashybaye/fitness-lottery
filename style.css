@@ -187,7 +187,7 @@ main {
 .challenge-text a,
 .zoom-text a {
   color: inherit;
-  text-decoration: underline;
+  text-decoration: none;
   text-underline-offset: 0.15em;
 }
 
